@@ -25,11 +25,18 @@ import java.util.Map;
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
-    private String topic;
+    private String topic;//消息指定的topic
     private int flag;
+
+    /*从put方法看主要包括：
+         TAGS：消息的tag属性
+         DELAY：延迟级别
+         WAIT：（WAIT_STORE_MSG_OK）消息发送之后是否等消息存储成功之后再返回
+         INSTANCE_ID：实例ID
+     */
     private Map<String, String> properties;
-    private byte[] body;
-    private String transactionId;
+    private byte[] body;//消息体的二进制
+    private String transactionId;//事务ID
 
     public Message() {
     }
@@ -40,11 +47,11 @@ public class Message implements Serializable {
 
     public Message(String topic, String tags, String keys, int flag, byte[] body, boolean waitStoreMsgOK) {
         this.topic = topic;
-        this.flag = flag;
+        this.flag = flag;//
         this.body = body;
 
         if (tags != null && tags.length() > 0)
-            this.setTags(tags);
+            this.setTags(tags);//指定tag
 
         if (keys != null && keys.length() > 0)
             this.setKeys(keys);

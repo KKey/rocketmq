@@ -25,9 +25,23 @@ import java.util.HashMap;
 import java.util.List;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+/**
+ * TOPIC队列路由信息
+ */
 public class TopicRouteData extends RemotingSerializable {
     private String orderTopicConf;
+    /* kkey
+     * TOPIC路由信息中TOPIC队列元数据，例如TOPIC在broker-a和broker-b中都分配有四个读写队列。
+     * 则在List<QueueData>中有两条QueueData数据，
+     * QueueData ==>> broker名称：brokerName = broker-a, 读队列数：readQueueNums = 4， 写队列数：writeQueueNums = 4, 读写权限 = 6，等等。。。
+     * QueueData ==>> broker名称：brokerName = broker-b, 读队列数：readQueueNums = 4， 写队列数：writeQueueNums = 4, 读写权限 = 6，等等。。。
+     */
     private List<QueueData> queueDatas;
+    /*
+        broker元数据列表，例如TOPIC所在集群cluster，在broker-a和broker-b中都分配
+        BrokerData ==>> broker名称：brokerName = broker-a,当前broker所属集群cluster
+        BrokerData ==>> broker名称：brokerName = broker-b,当前broker所属集群cluster
+     */
     private List<BrokerData> brokerDatas;
     private HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 

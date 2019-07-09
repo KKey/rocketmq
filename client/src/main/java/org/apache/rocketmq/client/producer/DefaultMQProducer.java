@@ -77,7 +77,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
      */
-    private String producerGroup;
+    private String producerGroup;//生产者所属组，主要用户事务消息回查
 
     /**
      * Just for testing or demo program
@@ -87,7 +87,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     /**
      * Number of queues to create per default topic.
      */
-    private volatile int defaultTopicQueueNums = 4;
+    private volatile int defaultTopicQueueNums = 4;//默认在每一个broker实例上创建的队列数量
 
     /**
      * Timeout for sending messages.
@@ -97,7 +97,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     /**
      * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
      */
-    private int compressMsgBodyOverHowmuch = 1024 * 4;
+    private int compressMsgBodyOverHowmuch = 1024 * 4;//4k压缩
 
     /**
      * Maximum number of retry to perform internally before claiming sending failure in synchronous mode.
@@ -105,7 +105,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
      */
-    private int retryTimesWhenSendFailed = 2;
+    private int retryTimesWhenSendFailed = 2;//同步发送失败重试次数
 
     /**
      * Maximum number of retry to perform internally before claiming sending failure in asynchronous mode.
@@ -113,17 +113,17 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
      */
-    private int retryTimesWhenSendAsyncFailed = 2;
+    private int retryTimesWhenSendAsyncFailed = 2;//异步发送失败重试次数
 
     /**
      * Indicate whether to retry another broker on sending failure internally.
      */
-    private boolean retryAnotherBrokerWhenNotStoreOK = false;
+    private boolean retryAnotherBrokerWhenNotStoreOK = false;//发送失败后是否重试其他broker
 
     /**
      * Maximum allowed message size in bytes.
      */
-    private int maxMessageSize = 1024 * 1024 * 4; // 4M
+    private int maxMessageSize = 1024 * 1024 * 4; // 消息最大4M限制
 
     /**
      * Interface of asynchronous transfer data
@@ -280,8 +280,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @throws MQClientException if there is any unexpected error.
      */
     @Override
+    //NOTE 生产者启动入口
     public void start() throws MQClientException {
-        this.setProducerGroup(withNamespace(this.producerGroup));
+        this.setProducerGroup(withNamespace(this.producerGroup));//处理group name
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {
             try {
@@ -332,10 +333,10 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @throws InterruptedException if the sending thread is interrupted.
      */
     @Override
-    public SendResult send(
-        Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
-        Validators.checkMessage(msg, this);
-        msg.setTopic(withNamespace(msg.getTopic()));
+    //同步模式，发送单个消息接口
+    public SendResult send(Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+        Validators.checkMessage(msg, this);//验证消息不能空，body不能空，topic是否规范，不能大于设置或默认的4M
+        msg.setTopic(withNamespace(msg.getTopic()));//校验和修改topic的命名，例如重试队列前后用%RETRY%，是否是死信队列，前后用%DLQ%
         return this.defaultMQProducerImpl.send(msg);
     }
 
