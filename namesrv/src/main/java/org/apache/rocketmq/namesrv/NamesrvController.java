@@ -65,8 +65,8 @@ public class NamesrvController {
 
     /**
      * 构造初始化参数
-     * @param namesrvConfig
-     * @param nettyServerConfig
+     * @param namesrvConfig NameServer的基础配置
+     * @param nettyServerConfig NameServer 作为服务端的一部分netty参数
      */
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
         this.namesrvConfig = namesrvConfig;//nameServer基础配置
@@ -74,42 +74,30 @@ public class NamesrvController {
         this.kvConfigManager = new KVConfigManager(this);//kv配置管理器
         this.routeInfoManager = new RouteInfoManager();//路由信息管理器
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
-        this.configuration = new Configuration(
-            log,
-            this.namesrvConfig, this.nettyServerConfig
-        );
-        this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
+        this.configuration = new Configuration(log, this.namesrvConfig, this.nettyServerConfig);//配置对象
+        this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");//配置文件路径
     }
 
     public boolean initialize() {
 
-        this.kvConfigManager.load();
+        this.kvConfigManager.load();// 加载K/V配置管理器
 
+        //构造NettyRemotingServer，根据是否用epoll模型，初始化了IO boss线程池和work线程池、public公共线程池等
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
-        this.remotingExecutor =
-            Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
+        //初始化线程池
+        this.remotingExecutor = Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
         this.registerProcessor();
 
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-
-            @Override
-            public void run() {
-                NamesrvController.this.routeInfoManager.scanNotActiveBroker();
-            }
-        }, 5, 10, TimeUnit.SECONDS);
-
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-
-            @Override
-            public void run() {
-                NamesrvController.this.kvConfigManager.printAllPeriodically();
-            }
-        }, 1, 10, TimeUnit.MINUTES);
+        //添加每10秒扫描存活broker的定时任务，移除不存活的broker
+        this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker, 5, 10, TimeUnit.SECONDS);
+        //添加每10分钟打印k/v配置的定时任务
+        this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically, 1, 10, TimeUnit.MINUTES);
 
         if (TlsSystemConfig.tlsMode != TlsMode.DISABLED) {
-            // Register a listener to reload SslContext
+            // 构造文件监听服务，其实就是个线程，监听构造数组中的文件，在线程启动之后循环扫描这些文件，读取文件内容并对内容进行MD5和缓存的MD5串进行比对，
+            // 数据有变动则MD5串必定不相同；如果文件内容发生变动，则回调listener的onChanged方法，重新加载这部分文件
             try {
                 fileWatchService = new FileWatchService(
                     new String[] {
@@ -122,7 +110,6 @@ public class NamesrvController {
                         @Override
                         public void onChanged(String path) {
                             if (path.equals(TlsSystemConfig.tlsServerTrustCertPath)) {
-                                log.info("The trust certificate changed, reload the ssl context");
                                 reloadServerSslContext();
                             }
                             if (path.equals(TlsSystemConfig.tlsServerCertPath)) {
@@ -132,7 +119,6 @@ public class NamesrvController {
                                 keyChanged = true;
                             }
                             if (certChanged && keyChanged) {
-                                log.info("The certificate and private key changed, reload the ssl context");
                                 certChanged = keyChanged = false;
                                 reloadServerSslContext();
                             }
@@ -161,10 +147,10 @@ public class NamesrvController {
     }
 
     public void start() throws Exception {
-        this.remotingServer.start();
+        this.remotingServer.start();//启动netty服务网络监听
 
         if (this.fileWatchService != null) {
-            this.fileWatchService.start();
+            this.fileWatchService.start();//启动文件监听线程
         }
     }
 

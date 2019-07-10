@@ -135,27 +135,30 @@ public class NamesrvStartup {
         return controller;
     }
 
+    /**
+     * 启动NamesrvController
+     * @param controller NamesrvController
+     * @return
+     * @throws Exception
+     */
     public static NamesrvController start(final NamesrvController controller) throws Exception {
-
-        if (null == controller) {
+        if (null == controller) {//校验
             throw new IllegalArgumentException("NamesrvController is null");
         }
 
-        boolean initResult = controller.initialize();
+        boolean initResult = controller.initialize();//核心初始化逻辑入口
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
-        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
-            @Override
-            public Void call() throws Exception {
-                controller.shutdown();
-                return null;
-            }
+        //添加运行时shutDown钩子，在shutdown时会执行ShutdownHookThread线程逻辑==>>NamesrvController.shutdown();
+        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
+            controller.shutdown();
+            return null;
         }));
 
-        controller.start();
+        controller.start();//核心启动逻辑入口
 
         return controller;
     }
