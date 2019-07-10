@@ -248,6 +248,10 @@ public class ClientConfig {
         this.language = language;
     }
 
+    /**
+     * 获取配置的name space，如果没有，则nameserver的地址，如果还没有或者不规范，则返回空
+     * @return
+     */
     public String getNamespace() {
         if (StringUtils.isNotEmpty(namespace)) {
             return namespace;

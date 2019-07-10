@@ -16,27 +16,24 @@
  */
 package org.apache.rocketmq.remoting.netty;
 
+/**
+ * nameServer 作为服务端的一部分netty参数
+ */
 public class NettyServerConfig implements Cloneable {
-    private int listenPort = 8888;
-    private int serverWorkerThreads = 8;
-    private int serverCallbackExecutorThreads = 0;
-    private int serverSelectorThreads = 3;
-    private int serverOnewaySemaphoreValue = 256;
-    private int serverAsyncSemaphoreValue = 64;
-    private int serverChannelMaxIdleTimeSeconds = 120;
+    private int listenPort = 8888;//nameServer监听端口，初始化时会指定成9876
+    private int serverWorkerThreads = 8;//netty业务线程池大小
+    private int serverSelectorThreads = 3;//netty IO线程池大小
+    private int serverCallbackExecutorThreads = 0;//公共任务线程池大小
 
-    private int serverSocketSndBufSize = NettySystemConfig.socketSndbufSize;
-    private int serverSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;
-    private boolean serverPooledByteBufAllocatorEnable = true;
+    private int serverOnewaySemaphoreValue = 256;//oneway请求并发量大小
+    private int serverAsyncSemaphoreValue = 64;//异步并发量大小
+    private int serverChannelMaxIdleTimeSeconds = 120;//连接最大空闲时长，单位秒
 
-    /**
-     * make make install
-     *
-     *
-     * ../glibc-2.10.1/configure \ --prefix=/usr \ --with-headers=/usr/include \
-     * --host=x86_64-linux-gnu \ --build=x86_64-pc-linux-gnu \ --without-gd
-     */
-    private boolean useEpollNativeSelector = false;
+    private int serverSocketSndBufSize = NettySystemConfig.socketSndbufSize;//netty发送缓冲区大小
+    private int serverSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;//netty接收缓冲区大小
+    private boolean serverPooledByteBufAllocatorEnable = true;//是否开启池化byteBuf分配标志，默认开启
+
+    private boolean useEpollNativeSelector = false;//是否采用epoll io模型
 
     public int getListenPort() {
         return listenPort;

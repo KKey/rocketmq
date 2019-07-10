@@ -56,23 +56,28 @@ public class MQFaultStrategy {
     }
 
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
-        if (this.sendLatencyFaultEnable) {
+        if (this.sendLatencyFaultEnable) {//sendLatencyFaultEnable = true则启动broker故障延迟机制
             try {
-                int index = tpInfo.getSendWhichQueue().getAndIncrement();
+                int index = tpInfo.getSendWhichQueue().getAndIncrement();//从路由信息中轮训获取一个index
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
                     int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
                     if (pos < 0)
                         pos = 0;
-                    MessageQueue mq = tpInfo.getMessageQueueList().get(pos);
+                    MessageQueue mq = tpInfo.getMessageQueueList().get(pos);//根据index%queueListSize获取一个消息队列
+                    //判断当前broker是否可用，因为上次执行判断broker不可用，则会将brokerName缓存在不可用Map中一段时间
                     if (latencyFaultTolerance.isAvailable(mq.getBrokerName())) {
                         if (null == lastBrokerName || mq.getBrokerName().equals(lastBrokerName))
                             return mq;
                     }
                 }
 
+                //如果所有路由信息中的对垒都不可用，则从缓存不可用broker的Map中选择一个可用的，都不可用，则null
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
-                int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
-                if (writeQueueNums > 0) {
+                //从本地缓存的topic路由信息中，遍历所有的TOPIC路由队列列表，
+                // 用队列所属的broker找和当前broker名称相匹配的队列，因为一个topic可能在多个broker中有队列
+                // 如果当前从不可用缓存broker map中没有找到，返回TOPIC队列的写队列数，没有找到则返回-1
+                int writeQueueNums = tpInfo.getWriteQueueNumByBroker(notBestBroker);
+                if (writeQueueNums > 0) {//如果TOPIC在notBestBroker的写队列数量>0
                     final MessageQueue mq = tpInfo.selectOneMessageQueue();
                     if (notBestBroker != null) {
                         mq.setBrokerName(notBestBroker);
@@ -89,7 +94,7 @@ public class MQFaultStrategy {
             return tpInfo.selectOneMessageQueue();
         }
 
-        return tpInfo.selectOneMessageQueue(lastBrokerName);
+        return tpInfo.selectOneMessageQueue(lastBrokerName);//broker故障延迟隔离机制不启动
     }
 
     public void updateFaultItem(final String brokerName, final long currentLatency, boolean isolation) {

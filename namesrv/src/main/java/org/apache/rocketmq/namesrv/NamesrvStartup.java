@@ -54,8 +54,9 @@ public class NamesrvStartup {
     public static NamesrvController main0(String[] args) {
 
         try {
+            //创建NamesrvController
             NamesrvController controller = createNamesrvController(args);
-            start(controller);
+            start(controller);//启动NamesrvController
             String tip = "The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
             log.info(tip);
             System.out.printf("%s%n", tip);
@@ -69,10 +70,12 @@ public class NamesrvStartup {
     }
 
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
+        //设置版本的环境信息
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
-        //PackageConflictDetect.detectFastjson();
 
+        //构造命令行指令的一些参数和选项提示等
         Options options = ServerUtil.buildCommandlineOptions(new Options());
+        //初始化命令行的一些基础属性
         commandLine = ServerUtil.parseCmdLine("mqnamesrv", args, buildCommandlineOptions(options), new PosixParser());
         if (null == commandLine) {
             System.exit(-1);
@@ -81,17 +84,17 @@ public class NamesrvStartup {
 
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
-        nettyServerConfig.setListenPort(9876);
-        if (commandLine.hasOption('c')) {
-            String file = commandLine.getOptionValue('c');
+        nettyServerConfig.setListenPort(9876);//nameServer启动服务默认监听端口
+        if (commandLine.hasOption('c')) {//启动命令中打带有-c选项，-c configFile带的是配置文件路径
+            String file = commandLine.getOptionValue('c');//获取-c选项的值，配置文件路径
             if (file != null) {
                 InputStream in = new BufferedInputStream(new FileInputStream(file));
                 properties = new Properties();
-                properties.load(in);
-                MixAll.properties2Object(properties, namesrvConfig);
-                MixAll.properties2Object(properties, nettyServerConfig);
+                properties.load(in);//将配置文件内容加载并解析到properties对象中
+                MixAll.properties2Object(properties, namesrvConfig);//将文件的内容反射注入到namesrvConfig
+                MixAll.properties2Object(properties, nettyServerConfig);//将文件的内容反射注入到nettyServerConfig
 
-                namesrvConfig.setConfigStorePath(file);
+                namesrvConfig.setConfigStorePath(file);//设置配置文件路径
 
                 System.out.printf("load config properties file OK, %s%n", file);
                 in.close();
@@ -123,6 +126,7 @@ public class NamesrvStartup {
         MixAll.printObjectProperties(log, namesrvConfig);
         MixAll.printObjectProperties(log, nettyServerConfig);
 
+        //根据nameServer的基本配置和netty的配置对象构造NamesrvController，并初始化例如kv管理器，路由信息管理器
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
         // remember all configs to prevent discard
