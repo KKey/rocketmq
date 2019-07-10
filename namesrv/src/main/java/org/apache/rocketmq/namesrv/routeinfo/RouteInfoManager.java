@@ -381,11 +381,11 @@ public class RouteInfoManager {
         TopicRouteData topicRouteData = new TopicRouteData();
         boolean foundQueueData = false;
         boolean foundBrokerData = false;
-        Set<String> brokerNameSet = new HashSet<String>();
-        List<BrokerData> brokerDataList = new LinkedList<BrokerData>();
+        Set<String> brokerNameSet = new HashSet<>();
+        List<BrokerData> brokerDataList = new LinkedList<>();
         topicRouteData.setBrokerDatas(brokerDataList);
 
-        HashMap<String, List<String>> filterServerMap = new HashMap<String, List<String>>();
+        HashMap<String, List<String>> filterServerMap = new HashMap<>();
         topicRouteData.setFilterServerTable(filterServerMap);
 
         try {
@@ -396,9 +396,7 @@ public class RouteInfoManager {
                     topicRouteData.setQueueDatas(queueDataList);
                     foundQueueData = true;
 
-                    Iterator<QueueData> it = queueDataList.iterator();
-                    while (it.hasNext()) {
-                        QueueData qd = it.next();
+                    for (QueueData qd : queueDataList) {
                         brokerNameSet.add(qd.getBrokerName());
                     }
 
@@ -483,6 +481,7 @@ public class RouteInfoManager {
             try {
                 try {
                     this.lock.writeLock().lockInterruptibly();
+                    //从broker存活列表中移除，从filter服务器中移除
                     this.brokerLiveTable.remove(brokerAddrFound);
                     this.filterServerTable.remove(brokerAddrFound);
                     String brokerNameFound = null;
