@@ -282,8 +282,10 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     //NOTE 生产者启动入口
     public void start() throws MQClientException {
-        this.setProducerGroup(withNamespace(this.producerGroup));//处理group name
-        this.defaultMQProducerImpl.start();
+        //处理group name的一些规则，判空、默认等，以及重试队列和死信队列的处理
+        //重试队列是以%RETRY%开头，并拼接GROUP，死信队列是以%DLQ%开头
+        this.setProducerGroup(withNamespace(this.producerGroup));
+        this.defaultMQProducerImpl.start();//启动逻辑
         if (null != traceDispatcher) {
             try {
                 traceDispatcher.start(this.getNamesrvAddr(), this.getAccessChannel());
@@ -336,7 +338,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     //同步模式，发送单个消息接口
     public SendResult send(Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         Validators.checkMessage(msg, this);//验证消息不能空，body不能空，topic是否规范，不能大于设置或默认的4M
-        msg.setTopic(withNamespace(msg.getTopic()));//校验和修改topic的命名，例如重试队列前后用%RETRY%，是否是死信队列，前后用%DLQ%
+        msg.setTopic(withNamespace(msg.getTopic()));//校验和修改topic的命名，例如重试队列前用%RETRY%，是否是死信队列，前用%DLQ%
         return this.defaultMQProducerImpl.send(msg);
     }
 
@@ -379,7 +381,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     public void send(Message msg,
         SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException {
-        msg.setTopic(withNamespace(msg.getTopic()));
+        msg.setTopic(withNamespace(msg.getTopic()));//处理topic
         this.defaultMQProducerImpl.send(msg, sendCallback);
     }
 
@@ -411,7 +413,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void sendOneway(Message msg) throws MQClientException, RemotingException, InterruptedException {
-        msg.setTopic(withNamespace(msg.getTopic()));
+        msg.setTopic(withNamespace(msg.getTopic()));//TOPIC处理
         this.defaultMQProducerImpl.sendOneway(msg);
     }
 

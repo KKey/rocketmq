@@ -25,7 +25,7 @@ import java.util.Map;
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
-    private String topic;//消息指定的topic
+    private String topic;//指定消息所属的topic
     private int flag;
 
     /*从put方法看主要包括：
@@ -33,6 +33,7 @@ public class Message implements Serializable {
          DELAY：延迟级别
          WAIT：（WAIT_STORE_MSG_OK）消息发送之后是否等消息存储成功之后再返回
          INSTANCE_ID：实例ID
+         UNIQ_KEY：唯一消息编号
      */
     private Map<String, String> properties;
     private byte[] body;//消息体的二进制
