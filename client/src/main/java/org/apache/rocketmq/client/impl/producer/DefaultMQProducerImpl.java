@@ -194,14 +194,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         null);
                 }
 
+                //在topic路由表中，初始化一个路由对象
                 this.topicPublishInfoTable.put(this.defaultMQProducer.getCreateTopicKey(), new TopicPublishInfo());
 
                 if (startFactory) {
-                    mQClientFactory.start();//MQClientInstance的启动
+                    mQClientFactory.start();//MQClientInstance MQ客户端的启动
                 }
 
-                log.info("the producer [{}] start OK. sendMessageWithVIPChannel={}", this.defaultMQProducer.getProducerGroup(),
-                    this.defaultMQProducer.isSendMessageWithVIPChannel());
                 this.serviceState = ServiceState.RUNNING;
                 break;
             case RUNNING:
@@ -215,6 +214,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 break;
         }
 
+        //KKEY 发送心跳包给所有broker
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
     }
 
@@ -484,19 +484,21 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public void send(final Message msg, final SendCallback sendCallback, final long timeout)
         throws MQClientException, RemotingException, InterruptedException {
         final long beginStartTime = System.currentTimeMillis();
-        ExecutorService executor = this.getAsyncSenderExecutor();
+        ExecutorService executor = this.getAsyncSenderExecutor();//获取异步发送线程池
         try {
-            executor.submit(new Runnable() {
+            executor.submit(new Runnable() {//提交异步发送任务
                 @Override
                 public void run() {
                     long costTime = System.currentTimeMillis() - beginStartTime;
                     if (timeout > costTime) {
                         try {
+                            //指定异步模式发送
                             sendDefaultImpl(msg, CommunicationMode.ASYNC, sendCallback, timeout - costTime);
                         } catch (Exception e) {
                             sendCallback.onException(e);
                         }
                     } else {
+                        //超时处理
                         sendCallback.onException(
                             new RemotingTooMuchRequestException("DEFAULT ASYNC send call timeout"));
                     }
@@ -506,7 +508,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         } catch (RejectedExecutionException e) {
             throw new MQClientException("executor rejected ", e);
         }
-
     }
 
 
@@ -524,7 +525,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         final SendCallback sendCallback,
         final long timeout
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
-        this.makeSureStateOK();//状态
+        this.makeSureStateOK();//确认当前producer的状态是否running
         Validators.checkMessage(msg, this.defaultMQProducer);//校验message
 
         final long invokeID = random.nextLong();//产生调用ID
@@ -540,9 +541,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             int timesTotal = communicationMode == CommunicationMode.SYNC ? 1 + this.defaultMQProducer.getRetryTimesWhenSendFailed() : 1;
             int times = 0;
             String[] brokersSent = new String[timesTotal];
-            for (; times < timesTotal; times++) {//控制请求次数，同步模式：当前请求1次+可失败重试次数，异步模式：只有当前请求一次
+            for (; times < timesTotal; times++) {//KKEY 控制请求次数，同步模式：当前请求1次+可失败重试次数，异步模式：只有当前请求一次
                 String lastBrokerName = null == mq ? null : mq.getBrokerName();
-                //NOTE 选择一个消息队列
+                //KKEY 选择一个消息队列
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {
                     mq = mqSelected;
@@ -550,17 +551,18 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     try {
                         beginTimestampPrev = System.currentTimeMillis();
                         if (times > 0) {
-                            //Reset topic with namespace during resend.
+                            //如果是重试，重新确定消息的topic
                             msg.setTopic(this.defaultMQProducer.withNamespace(msg.getTopic()));
                         }
                         long costTime = beginTimestampPrev - beginTimestampFirst;
                         if (timeout < costTime) {
-                            callTimeout = true;
+                            callTimeout = true;//本次发送消耗的时间超过超时限制，则超时处理
                             break;
                         }
                         //KKEY 执行发送消息
                         sendResult = this.sendKernelImpl(msg, mq, communicationMode, sendCallback, topicPublishInfo, timeout - costTime);
                         endTimestamp = System.currentTimeMillis();
+                        //KKEY 更新broker故障隔离信息
                         this.updateFaultItem(mq.getBrokerName(), endTimestamp - beginTimestampPrev, false);
                         switch (communicationMode) {
                             case ASYNC:

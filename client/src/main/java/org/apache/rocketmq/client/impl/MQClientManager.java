@@ -46,12 +46,12 @@ public class MQClientManager {
 
     public MQClientInstance getAndCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
         //根据IP+@+INSTANCE_NAME+@+UNITNAME，因为之前如果instanceName为DEFAULT则修改成进程号，由此可以规避一个机器启动多个客户端进程时clientId相同的问题。
+        //KKEY 所以一个jvm进程中，定义了多个provider，如果provider的instance-name相同，则公用一个client
         String clientId = clientConfig.buildMQClientId();
         //根据clientId从全局缓存Map中取MQClientInstance实例，因为MQClientManager是单例的，所以是全局map。
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
-            instance =
-                new MQClientInstance(clientConfig.cloneClientConfig(),
+            instance = new MQClientInstance(clientConfig.cloneClientConfig(),
                     this.factoryIndexGenerator.getAndIncrement(), clientId, rpcHook);
             MQClientInstance prev = this.factoryTable.putIfAbsent(clientId, instance);//如果创建过程中，其他线程已经put进去了，则返回已经存在的
             if (prev != null) {
