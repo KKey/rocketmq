@@ -71,12 +71,12 @@ public class MQFaultStrategy {
                     }
                 }
 
-                //如果所有路由信息中的对垒都不可用，则从缓存不可用broker的Map中选择一个可用的，都不可用，则null
+                //如果所有路由信息中的队列都不可用，则从缓存不可用broker的Map中选择一个可用的，都不可用，则null
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 //从本地缓存的topic路由信息中，遍历所有的TOPIC路由队列列表，
                 // 用队列所属的broker找和当前broker名称相匹配的队列，因为一个topic可能在多个broker中有队列
                 // 如果当前从不可用缓存broker map中没有找到，返回TOPIC队列的写队列数，没有找到则返回-1
-                int writeQueueNums = tpInfo.getWriteQueueNumByBroker(notBestBroker);
+                int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
                 if (writeQueueNums > 0) {//如果TOPIC在notBestBroker的写队列数量>0
                     final MessageQueue mq = tpInfo.selectOneMessageQueue();
                     if (notBestBroker != null) {
@@ -91,7 +91,7 @@ public class MQFaultStrategy {
                 log.error("Error occurred when selecting message queue", e);
             }
 
-            return tpInfo.selectOneMessageQueue();
+            return tpInfo.selectOneMessageQueue();//轮训一个吗
         }
 
         return tpInfo.selectOneMessageQueue(lastBrokerName);//broker故障延迟隔离机制不启动

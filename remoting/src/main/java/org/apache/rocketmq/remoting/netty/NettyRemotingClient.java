@@ -364,15 +364,17 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     public RemotingCommand invokeSync(String addr, final RemotingCommand request, long timeoutMillis)
         throws InterruptedException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException {
         long beginStartTime = System.currentTimeMillis();
-        final Channel channel = this.getAndCreateChannel(addr);
+        final Channel channel = this.getAndCreateChannel(addr);//从缓存获取连接，没有则建立连接
         if (channel != null && channel.isActive()) {
             try {
-                doBeforeRpcHooks(addr, request);
+                doBeforeRpcHooks(addr, request);//RPC调用的前置钩子函数执行
                 long costTime = System.currentTimeMillis() - beginStartTime;
-                if (timeoutMillis < costTime) {
+                if (timeoutMillis < costTime) {//到这里就超时了，那就抛异常了。因为前面有可能要建立连接
                     throw new RemotingTimeoutException("invokeSync call timeout");
                 }
+                //执行RPC发送，并阻塞等待请求回调或者超时。
                 RemotingCommand response = this.invokeSyncImpl(channel, request, timeoutMillis - costTime);
+                //RPC调用的后置钩子函数执行
                 doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(channel), request, response);
                 return response;
             } catch (RemotingSendRequestException e) {
@@ -388,7 +390,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                 throw e;
             }
         } else {
-            this.closeChannel(addr, channel);
+            this.closeChannel(addr, channel);//连接状态不正常等
             throw new RemotingConnectException(addr);
         }
     }
@@ -541,18 +543,18 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     @Override
     public void invokeOneway(String addr, RemotingCommand request, long timeoutMillis) throws InterruptedException,
         RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
-        final Channel channel = this.getAndCreateChannel(addr);
+        final Channel channel = this.getAndCreateChannel(addr);//获取或创建连接
         if (channel != null && channel.isActive()) {
             try {
-                doBeforeRpcHooks(addr, request);
-                this.invokeOnewayImpl(channel, request, timeoutMillis);
+                doBeforeRpcHooks(addr, request);//执行rpc前置hook增强逻辑
+                this.invokeOnewayImpl(channel, request, timeoutMillis);//发送
             } catch (RemotingSendRequestException e) {
                 log.warn("invokeOneway: send request exception, so close the channel[{}]", addr);
                 this.closeChannel(addr, channel);
                 throw e;
             }
         } else {
-            this.closeChannel(addr, channel);
+            this.closeChannel(addr, channel);//关闭连接不正常的channel
             throw new RemotingConnectException(addr);
         }
     }

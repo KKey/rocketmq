@@ -58,6 +58,13 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
  * and used among multiple threads context.
  * </p>
  */
+
+/**
+    public interface MQProducer extends MQAdmin
+    public class DefaultMQProducer extends ClientConfig implements MQProducer
+    MQAdmin：接口，主要定义mq管理的功能，例如topic的创建、消息message的查询等；
+    MQProducer：接口，主要定义生产者的启动和注销、消息的各种方式发送等功能；
+ */
 public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     private final InternalLogger log = ClientLogger.getLog();
@@ -209,6 +216,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param producerGroup Producer group, see the name-sake field.
      * @param rpcHook RPC hook to execute per each remoting command execution.
      */
+    //从这里看默认消息发送等逻辑的实现是DefaultMQProducerImpl，后面主要关注DefaultMQProducerImpl
     public DefaultMQProducer(final String namespace, final String producerGroup, RPCHook rpcHook) {
         this.namespace = namespace;
         this.producerGroup = producerGroup;
@@ -286,6 +294,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {
             try {
+                //异步消息的跟踪
                 traceDispatcher.start(this.getNamesrvAddr(), this.getAccessChannel());
             } catch (MQClientException e) {
                 log.warn("trace dispatcher start failed ", e);

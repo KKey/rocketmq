@@ -626,6 +626,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 从nameServer获取并更新topic路由信息
+     * 首先拿参数(topic, false, null)指定topic从nameServer请求更新，如果请求更新没有
+     * 则再拿默认参数(topic, true, defaultProducer)获取默认路由信息并更新
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
@@ -650,19 +655,19 @@ public class MQClientInstance {
                     }
                     if (topicRouteData != null) {
                         TopicRouteData old = this.topicRouteTable.get(topic);
-                        //从nameServer获取的路由信息和本地缓存路由进行比较，判断是否更新过
+                        //从nameServer获取的路由信息和本地缓存路由信息进行比较，判断是否更新过
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
                         if (!changed) {
-                            changed = this.isNeedUpdateTopicRouteInfo(topic);//没有变更
+                            changed = this.isNeedUpdateTopicRouteInfo(topic);//TODO 没有变更，这个咋回事，干啥呢。
                         } else {
                             log.info("the topic[{}] route info changed, old[{}] ,new[{}]", topic, old, topicRouteData);
                         }
 
-                        if (changed) {
+                        if (changed) {//修改了，那就执行更新吧
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
 
                             for (BrokerData bd : topicRouteData.getBrokerDatas()) {
-                                //缓存当前TOPIC对应的broker地址，一个topic可能在多个broker都有分配队列；
+                                //更新或覆盖缓存当前TOPIC对应的broker地址，一个topic可能在多个broker都有分配队列；
                                 this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
                             }
 
@@ -673,9 +678,7 @@ public class MQClientInstance {
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
                                 publishInfo.setHaveTopicRouterInfo(true);
                                 //KKEY 更新本地缓存的消息生产者的路由信息，前面创建的this.topicPublishInfoTable.putIfAbsent(topic, new TopicPublishInfo());在这里更新
-                                Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
-                                while (it.hasNext()) {
-                                    Entry<String, MQProducerInner> entry = it.next();
+                                for (Entry<String, MQProducerInner> entry : this.producerTable.entrySet()) {
                                     MQProducerInner impl = entry.getValue();
                                     if (impl != null) {
                                         impl.updateTopicPublishInfo(topic, publishInfo);

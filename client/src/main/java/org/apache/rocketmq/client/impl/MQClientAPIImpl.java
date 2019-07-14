@@ -312,7 +312,7 @@ public class MQClientAPIImpl {
         final DefaultMQProducerImpl producer
     ) throws RemotingException, MQBrokerException, InterruptedException {
         long beginStartTime = System.currentTimeMillis();
-        RemotingCommand request = null;
+        RemotingCommand request = null;//构造请求整体报文
         if (sendSmartMsg || msg instanceof MessageBatch) {
             SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
             request = RemotingCommand.createRequestCommand(msg instanceof MessageBatch ? RequestCode.SEND_BATCH_MESSAGE : RequestCode.SEND_MESSAGE_V2, requestHeaderV2);
@@ -320,13 +320,13 @@ public class MQClientAPIImpl {
             request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
         }
 
-        request.setBody(msg.getBody());
+        request.setBody(msg.getBody());//设置报文体
 
         switch (communicationMode) {
-            case ONEWAY:
+            case ONEWAY://单向请求，只管发
                 this.remotingClient.invokeOneway(addr, request, timeoutMillis);
                 return null;
-            case ASYNC:
+            case ASYNC://异步
                 final AtomicInteger times = new AtomicInteger();
                 long costTimeAsync = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTimeAsync) {
@@ -335,7 +335,7 @@ public class MQClientAPIImpl {
                 this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance,
                     retryTimesWhenSendFailed, times, context, producer);
                 return null;
-            case SYNC:
+            case SYNC://同步，请参见前面的代码：invokeSync方法是最终RPC请求逻辑
                 long costTimeSync = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTimeSync) {
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
@@ -375,6 +375,8 @@ public class MQClientAPIImpl {
         final SendMessageContext context,
         final DefaultMQProducerImpl producer
     ) throws InterruptedException, RemotingException {
+        //KKEY 发送异步RPC并坐等个回调InvokeCallback::operationComplete，请求发送之后会用callBack等信息构造一个future
+        //KKEY 并将future缓存到map中，netty客户端启动的时候已经启动了异步回调扫描任务，没3S处理一次回调成功的结果，执行InvokeCallback.operationComplete
         this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
             @Override
             public void operationComplete(ResponseFuture responseFuture) {
@@ -382,10 +384,11 @@ public class MQClientAPIImpl {
                 if (null == sendCallback && response != null) {
 
                     try {
+                        //KKEY 没有自定义回调逻辑的时候执行这部分
                         SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response);
                         if (context != null && sendResult != null) {
                             context.setSendResult(sendResult);
-                            context.getProducer().executeSendMessageHookAfter(context);
+                            context.getProducer().executeSendMessageHookAfter(context);//后置增强
                         }
                     } catch (Throwable e) {
                     }
@@ -404,7 +407,7 @@ public class MQClientAPIImpl {
                         }
 
                         try {
-                            sendCallback.onSuccess(sendResult);
+                            sendCallback.onSuccess(sendResult);//自定义当初调用传进来的回调逻辑
                         } catch (Throwable e) {
                         }
 
@@ -1217,15 +1220,16 @@ public class MQClientAPIImpl {
 
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis,
         boolean allowTopicNotExist) throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
-        GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
-        requestHeader.setTopic(topic);
+        GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();//特定的获取路由信息请求的header
+        requestHeader.setTopic(topic);//设置topic
 
+        //构造从NAMEServer获取路由信息的请求对象，请求code指明get topic by topic
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ROUTEINTO_BY_TOPIC, requestHeader);
 
-        RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);//发送请求并返回结果
         assert response != null;
         switch (response.getCode()) {
-            case ResponseCode.TOPIC_NOT_EXIST: {
+            case ResponseCode.TOPIC_NOT_EXIST: {//TOPIC不存在同时不自动创建，那咋办呢，打个日志呗
                 if (allowTopicNotExist && !topic.equals(MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC)) {
                     log.warn("get Topic [{}] RouteInfoFromNameServer is not exist value", topic);
                 }
@@ -1235,6 +1239,7 @@ public class MQClientAPIImpl {
             case ResponseCode.SUCCESS: {
                 byte[] body = response.getBody();
                 if (body != null) {
+                    //返回body解码成TopicRouteData结构
                     return TopicRouteData.decode(body, TopicRouteData.class);
                 }
             }
