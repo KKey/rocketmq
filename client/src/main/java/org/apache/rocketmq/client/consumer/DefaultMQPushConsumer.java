@@ -76,7 +76,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
      */
-    private String consumerGroup;
+    private String consumerGroup;//所属消费组，一个topic可以被多个组消费，一个消费组可以消费多个topic
 
     /**
      * Message model defines the way how messages are delivered to each consumer clients.
@@ -90,7 +90,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * This field defaults to clustering.
      */
-    private MessageModel messageModel = MessageModel.CLUSTERING;
+    private MessageModel messageModel = MessageModel.CLUSTERING;//默认集群模式
 
     /**
      * Consuming point on consumer booting.
@@ -123,7 +123,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * </li>
      * </ul>
      */
-    private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET;
+    private ConsumeFromWhere consumeFromWhere = ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET;//默认从队列消息最大偏移量开始消费
 
     /**
      * Backtracking consumption time with second precision. Time format is
@@ -136,32 +136,32 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
      */
-    private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
+    private AllocateMessageQueueStrategy allocateMessageQueueStrategy;//集群模式下队列负载策略
 
     /**
      * Subscription relationship
      */
-    private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
+    private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();//订阅信息
 
     /**
      * Message listener
      */
-    private MessageListener messageListener;
+    private MessageListener messageListener;//消息消费监听处理
 
     /**
      * Offset Storage
      */
-    private OffsetStore offsetStore;
+    private OffsetStore offsetStore;//消息消费进度存储
 
     /**
      * Minimum consumer thread number
      */
-    private int consumeThreadMin = 20;
+    private int consumeThreadMin = 20;//消费端消费线程池最小线程数量
 
     /**
      * Max consumer thread number
      */
-    private int consumeThreadMax = 20;
+    private int consumeThreadMax = 20;//消费端消费线程池最大线程数量
 
     /**
      * Threshold for dynamic adjustment of the number of thread pool
@@ -171,7 +171,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Concurrently max span offset.it has no effect on sequential consumption
      */
-    private int consumeConcurrentlyMaxSpan = 2000;
+    private int consumeConcurrentlyMaxSpan = 2000;//并发消费同一队列最大最小消息偏移量差值超过2000默认触发限流
 
     /**
      * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
@@ -213,7 +213,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Message pull Interval
      */
-    private long pullInterval = 0;
+    private long pullInterval = 0;//拉取消息请求相隔时间，push模式默认为0，拉完这一次就开始下一次
 
     /**
      * Batch consumption size
@@ -223,12 +223,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Batch pull size
      */
-    private int pullBatchSize = 32;
+    private int pullBatchSize = 32;//每次消息拉取的默认条数
 
     /**
      * Whether update subscription relationship when every pull
      */
-    private boolean postSubscriptionWhenPull = false;
+    private boolean postSubscriptionWhenPull = false;//每次拉取消息就更新订阅信息吗，默认不是
 
     /**
      * Whether the unit of subscription group
@@ -242,22 +242,22 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * If messages are re-consumed more than {@link #maxReconsumeTimes} before success, it's be directed to a deletion
      * queue waiting.
      */
-    private int maxReconsumeTimes = -1;
+    private int maxReconsumeTimes = -1;//消息最大重试次数
 
     /**
      * Suspending pulling time for cases requiring slow pulling like flow-control scenario.
      */
-    private long suspendCurrentQueueTimeMillis = 1000;
+    private long suspendCurrentQueueTimeMillis = 1000;//延迟消息队列消息投递到消费者线程的等待时间
 
     /**
      * Maximum amount of time in minutes a message may block the consuming thread.
      */
-    private long consumeTimeout = 15;
+    private long consumeTimeout = 15;//消息消费超时时间
 
     /**
      * Interface of asynchronous transfer data
      */
-    private TraceDispatcher traceDispatcher = null;
+    private TraceDispatcher traceDispatcher = null;//异步分发
 
     /**
      * Default constructor.
@@ -688,9 +688,11 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * @throws MQClientException if there is any client error.
      */
     @Override
+    //pull模式下启动入口
     public void start() throws MQClientException {
+        //常规处理consumer消费组的命名。
         setConsumerGroup(NamespaceUtil.wrapNamespace(this.getNamespace(), this.consumerGroup));
-        this.defaultMQPushConsumerImpl.start();
+        this.defaultMQPushConsumerImpl.start();//实际逻辑实现defaultMQPushConsumerImpl
         if (null != traceDispatcher) {
             try {
                 traceDispatcher.start(this.getNamesrvAddr(), this.getAccessChannel());
@@ -741,12 +743,9 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     }
 
     /**
-     * Subscribe a topic to consuming subscription.
-     *
-     * @param topic topic to subscribe.
-     * @param subExpression subscription expression.it only support or operation such as "tag1 || tag2 || tag3" <br>
-     * if null or * expression,meaning subscribe all
-     * @throws MQClientException if there is any client error.
+     * 订阅一个TOPIC
+     * @param topic 订阅的TOPIC
+     * @param subExpression 过滤表达式，例如指定topic下的部分tag，tag1 || tag2 || tag3"，null或者*默认全部tag
      */
     @Override
     public void subscribe(String topic, String subExpression) throws MQClientException {

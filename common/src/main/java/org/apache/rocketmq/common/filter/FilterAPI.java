@@ -36,23 +36,24 @@ public class FilterAPI {
         return simple;
     }
 
+    //构造订阅信息
     public static SubscriptionData buildSubscriptionData(final String consumerGroup, String topic,
         String subString) throws Exception {
         SubscriptionData subscriptionData = new SubscriptionData();
-        subscriptionData.setTopic(topic);
-        subscriptionData.setSubString(subString);
+        subscriptionData.setTopic(topic);//设置topic
+        subscriptionData.setSubString(subString);//设置过滤表达式
 
         if (null == subString || subString.equals(SubscriptionData.SUB_ALL) || subString.length() == 0) {
-            subscriptionData.setSubString(SubscriptionData.SUB_ALL);
+            subscriptionData.setSubString(SubscriptionData.SUB_ALL);//空字符串或者null或者*，全部替换成*
         } else {
-            String[] tags = subString.split("\\|\\|");
+            String[] tags = subString.split("\\|\\|");//过滤表达式用|分割
             if (tags.length > 0) {
                 for (String tag : tags) {
                     if (tag.length() > 0) {
                         String trimString = tag.trim();
                         if (trimString.length() > 0) {
-                            subscriptionData.getTagsSet().add(trimString);
-                            subscriptionData.getCodeSet().add(trimString.hashCode());
+                            subscriptionData.getTagsSet().add(trimString);//将单个tag设置到订阅信息的set里
+                            subscriptionData.getCodeSet().add(trimString.hashCode());//并保存tag的hash值到set里
                         }
                     }
                 }

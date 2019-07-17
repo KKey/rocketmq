@@ -63,20 +63,19 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
     public ConsumeMessageConcurrentlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl,
         MessageListenerConcurrently messageListener) {
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
-        this.messageListener = messageListener;
-
+        this.messageListener = messageListener;//消息监听业务处理
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
-        this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+        this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();//消费组
         this.consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
-
+        //初始化消费线程池
         this.consumeExecutor = new ThreadPoolExecutor(
-            this.defaultMQPushConsumer.getConsumeThreadMin(),
-            this.defaultMQPushConsumer.getConsumeThreadMax(),
+            this.defaultMQPushConsumer.getConsumeThreadMin(),//最小消费线程池线程大小
+            this.defaultMQPushConsumer.getConsumeThreadMax(),//最大消费线程池线程大小
             1000 * 60,
             TimeUnit.MILLISECONDS,
-            this.consumeRequestQueue,
+            this.consumeRequestQueue,//无界有序任务缓存队列
             new ThreadFactoryImpl("ConsumeMessageThread_"));
-
+        //定时单个线程线程池两个
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
         this.cleanExpireMsgExecutors = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CleanExpireMsgScheduledThread_"));
     }
