@@ -255,6 +255,7 @@ public class MQClientInstance {
                     /*
                         kkey 启动重新负载service线程，RebalanceService::run
                         NOTE 正常情况下，等待一小段时间的死循环做重负载this.mqClientFactory.doRebalance();
+                        主要就是根据负载算法，选择需要拉取消息的队列并创建拉取请求并添加到请求队列中等待pullMessageService的拉取触发RPC拉取请求
                       */
                     this.rebalanceService.start();
 
@@ -1015,6 +1016,7 @@ public class MQClientInstance {
                 try {
                     impl.doRebalance();//每一个consumer进行重新负载，pull和push模式
                 } catch (Throwable e) {
+                    //把异常抓了，这个consumer重负载失败，不影响其他consumer的重负载
                     log.error("doRebalance exception", e);
                 }
             }

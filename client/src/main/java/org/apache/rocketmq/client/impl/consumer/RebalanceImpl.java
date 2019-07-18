@@ -218,12 +218,13 @@ public abstract class RebalanceImpl {
     }
 
     public void doRebalance(final boolean isOrder) {
+        //当前consumer的订阅信息，可订阅多个topic
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
             for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
                 try {
-                    this.rebalanceByTopic(topic, isOrder);//每个topic进行负载
+                    this.rebalanceByTopic(topic, isOrder);//每个topic都要进行负载
                 } catch (Throwable e) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
                         log.warn("rebalanceByTopic Exception", e);
@@ -259,7 +260,8 @@ public abstract class RebalanceImpl {
                 break;
             }
             case CLUSTERING: {//KKEY 集群模式
-                //根据当前topic获取订阅信息中的消息队列列表
+                //根据当前consumer以及topic获取订阅信息中的消息队列列表，这个TOPIC分配给这个consumer的队列列表
+                //例如topic=tp,八个队列，订阅tp的是一个consumerGroup，有两个consumer，A和B，各四个队列
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
                 // 从broker端获取消费该消费组的所有客户端clientId
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
@@ -280,6 +282,7 @@ public abstract class RebalanceImpl {
                     Collections.sort(mqAll);
                     Collections.sort(cidAll);
 
+                    //不特意指定的情况下，默认是AllocateMessageQueueAveragely
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
 
                     List<MessageQueue> allocateResult;
@@ -408,10 +411,10 @@ public abstract class RebalanceImpl {
                         //创建拉取请求
                         log.info("doRebalance, {}, add a new mq, {}", consumerGroup, mq);
                         PullRequest pullRequest = new PullRequest();
-                        pullRequest.setConsumerGroup(consumerGroup);
-                        pullRequest.setNextOffset(nextOffset);
-                        pullRequest.setMessageQueue(mq);
-                        pullRequest.setProcessQueue(pq);
+                        pullRequest.setConsumerGroup(consumerGroup);//消费者组
+                        pullRequest.setNextOffset(nextOffset);//拉取消息开始偏移量
+                        pullRequest.setMessageQueue(mq);//待拉取消息队列
+                        pullRequest.setProcessQueue(pq);//拉取消息临时存放process queue等待消费业务线程处理
                         pullRequestList.add(pullRequest);
                         changed = true;
                     }

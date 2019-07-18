@@ -215,52 +215,58 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             log.info("the pull request[{}] is dropped.", pullRequest.toString());
             return;
         }
-
+        //更新processQueue的上一次拉取时间未当前时间
         pullRequest.getProcessQueue().setLastPullTimestamp(System.currentTimeMillis());
 
         try {
             this.makeSureStateOK();
         } catch (MQClientException e) {
             log.warn("pullMessage exception, consumer state not ok", e);
+            //当前consumer非正常运行状态，延迟三秒重新入队
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_EXCEPTION);
             return;
         }
 
         if (this.isPause()) {
+            //当前consumer被挂起，延迟1秒重新入队
             log.warn("consumer was paused, execute pull request later. instanceName={}, group={}", this.defaultMQPushConsumer.getInstanceName(), this.defaultMQPushConsumer.getConsumerGroup());
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND);
             return;
         }
 
-        long cachedMessageCount = processQueue.getMsgCount().get();
-        long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);
-
+        long cachedMessageCount = processQueue.getMsgCount().get();//process queue缓存的消息数量
+        long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);//缓存消息总大小
         if (cachedMessageCount > this.defaultMQPushConsumer.getPullThresholdForQueue()) {
+            //KKEY 当前缓存的消息大小超过设置或默认1000的大小，超过1000条消息，则触发流控，当前请求不处理，然后延时50MS再添加到消息拉取队列
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
             if ((queueFlowControlTimes++ % 1000) == 0) {
-                log.warn(
-                    "the cached message count exceeds the threshold {}, so do flow control, minOffset={}, maxOffset={}, count={}, size={} MiB, pullRequest={}, flowControlTimes={}",
+                //没出发一千次流控，就打印一条warn日志
+                log.warn("the cached message count exceeds the threshold {}, so do flow control, minOffset={}, maxOffset={}, count={}, size={} MiB, pullRequest={}, flowControlTimes={}",
                     this.defaultMQPushConsumer.getPullThresholdForQueue(), processQueue.getMsgTreeMap().firstKey(), processQueue.getMsgTreeMap().lastKey(), cachedMessageCount, cachedMessageSizeInMiB, pullRequest, queueFlowControlTimes);
             }
             return;
         }
 
         if (cachedMessageSizeInMiB > this.defaultMQPushConsumer.getPullThresholdSizeForQueue()) {
+            //KKEY 缓存消息总大小超过100M，则触发流控，当前请求不处理，然后延时50MS再添加到消息拉取队列
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
             if ((queueFlowControlTimes++ % 1000) == 0) {
-                log.warn(
-                    "the cached message size exceeds the threshold {} MiB, so do flow control, minOffset={}, maxOffset={}, count={}, size={} MiB, pullRequest={}, flowControlTimes={}",
+                //没出发一千次流控，就打印一条warn日志
+                log.warn("the cached message size exceeds the threshold {} MiB, so do flow control, minOffset={}, maxOffset={}, count={}, size={} MiB, pullRequest={}, flowControlTimes={}",
                     this.defaultMQPushConsumer.getPullThresholdSizeForQueue(), processQueue.getMsgTreeMap().firstKey(), processQueue.getMsgTreeMap().lastKey(), cachedMessageCount, cachedMessageSizeInMiB, pullRequest, queueFlowControlTimes);
             }
             return;
         }
 
         if (!this.consumeOrderly) {
+            //不是有序消息，processQueue.getMaxSpan()获取缓存消息的最大和最小偏移量差值
             if (processQueue.getMaxSpan() > this.defaultMQPushConsumer.getConsumeConcurrentlyMaxSpan()) {
+                //KKEY 缓存消息的消息偏移量差值大于2000，则触发流控，当前请求不处理，然后延时50MS再添加到消息拉取队列
+                //TODO 引用：主要考虑是担心一条消息阻塞，导致消费进度无法向前推进，可能造成大量消息重复消费
                 this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL);
                 if ((queueMaxSpanFlowControlTimes++ % 1000) == 0) {
-                    log.warn(
-                        "the queue's messages, span too long, so do flow control, minOffset={}, maxOffset={}, maxSpan={}, pullRequest={}, flowControlTimes={}",
+                    //没出发一千次流控，就打印一条warn日志
+                    log.warn("the queue's messages, span too long, so do flow control, minOffset={}, maxOffset={}, maxSpan={}, pullRequest={}, flowControlTimes={}",
                         processQueue.getMsgTreeMap().firstKey(), processQueue.getMsgTreeMap().lastKey(), processQueue.getMaxSpan(),
                         pullRequest, queueMaxSpanFlowControlTimes);
                 }
@@ -268,7 +274,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             }
         } else {
             if (processQueue.isLocked()) {
-                if (!pullRequest.isLockedFirst()) {
+                if (!pullRequest.isLockedFirst()) {//顺序消息的拉取要加锁，顺序拉取
                     final long offset = this.rebalanceImpl.computePullFromWhere(pullRequest.getMessageQueue());
                     boolean brokerBusy = offset < pullRequest.getNextOffset();
                     log.info("the first time to pull message, so fix offset from broker. pullRequest: {} NewOffset: {} brokerBusy: {}",
@@ -295,8 +301,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             return;
         }
 
-        final long beginTimestamp = System.currentTimeMillis();
+        final long beginTimestamp = System.currentTimeMillis();//记录开始拉取时间
 
+        //构造拉取回调逻辑
         PullCallback pullCallback = new PullCallback() {
             @Override
             public void onSuccess(PullResult pullResult) {
@@ -420,7 +427,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
             classFilter = sd.isClassFilterMode();
         }
-
+        //构造消息拉取任务的标志
         int sysFlag = PullSysFlag.buildSysFlag(
             commitOffsetEnable, // commitOffset
             true, // suspend
@@ -428,22 +435,24 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             classFilter // class filter
         );
         try {
+            //KKEY NOTE 消息拉取发送
             this.pullAPIWrapper.pullKernelImpl(
-                pullRequest.getMessageQueue(),
-                subExpression,
-                subscriptionData.getExpressionType(),
+                pullRequest.getMessageQueue(),//从这个消息队列拉取消息
+                subExpression,//消息过滤表达式
+                subscriptionData.getExpressionType(),//消息过滤类型
                 subscriptionData.getSubVersion(),
-                pullRequest.getNextOffset(),
-                this.defaultMQPushConsumer.getPullBatchSize(),
-                sysFlag,
+                pullRequest.getNextOffset(),//拉取偏移量
+                this.defaultMQPushConsumer.getPullBatchSize(),//一次拉取消息条数
+                sysFlag,//请求标志
                 commitOffsetValue,
-                BROKER_SUSPEND_MAX_TIME_MILLIS,
-                CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND,
-                CommunicationMode.ASYNC,
-                pullCallback
+                BROKER_SUSPEND_MAX_TIME_MILLIS,//拉取请求允许broker服务端hold住最大市时长，默认15S
+                CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND,//消息拉取请求超时时长，默认30S
+                CommunicationMode.ASYNC,//默认异步拉取
+                pullCallback//拉取消息回调逻辑
             );
         } catch (Exception e) {
             log.error("pullKernelImpl exception", e);
+            //拉取RPC请求出现异常，延迟3S再执行拉取
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_EXCEPTION);
         }
     }
@@ -632,7 +641,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         null);
                 }
 
-                mQClientFactory.start();
+                mQClientFactory.start();//mq client instance 启动
                 log.info("the consumer [{}] start OK.", this.defaultMQPushConsumer.getConsumerGroup());
                 this.serviceState = ServiceState.RUNNING;
                 break;
@@ -1009,6 +1018,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     @Override
     public void doRebalance() {
         if (!this.pause) {
+            //当前consumer状态正常才进行负载
             this.rebalanceImpl.doRebalance(this.isConsumeOrderly());
         }
     }
