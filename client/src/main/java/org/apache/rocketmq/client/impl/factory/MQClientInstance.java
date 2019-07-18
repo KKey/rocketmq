@@ -254,7 +254,7 @@ public class MQClientInstance {
 
                     /*
                         kkey 启动重新负载service线程，RebalanceService::run
-                        正常情况下，等待一小段时间的死循环做重负载this.mqClientFactory.doRebalance();
+                        NOTE 正常情况下，等待一小段时间的死循环做重负载this.mqClientFactory.doRebalance();
                       */
                     this.rebalanceService.start();
 
@@ -1013,7 +1013,7 @@ public class MQClientInstance {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 try {
-                    impl.doRebalance();
+                    impl.doRebalance();//每一个consumer进行重新负载，pull和push模式
                 } catch (Throwable e) {
                     log.error("doRebalance exception", e);
                 }
@@ -1108,15 +1108,19 @@ public class MQClientInstance {
         return 0;
     }
 
+    /**
+     * 根据topic和consumerGroup为参数调用mQClientFactory.findConsumerIdList()方法向Broker端发送获取该消费组下消费者Id列表的RPC通信请求
+     */
     public List<String> findConsumerIdList(final String topic, final String group) {
-        String brokerAddr = this.findBrokerAddrByTopic(topic);
+        String brokerAddr = this.findBrokerAddrByTopic(topic);//根据topic获取一个broker地址信息
         if (null == brokerAddr) {
-            this.updateTopicRouteInfoFromNameServer(topic);
-            brokerAddr = this.findBrokerAddrByTopic(topic);
+            this.updateTopicRouteInfoFromNameServer(topic);//缓存没有则从nameServer获取并更新缓存
+            brokerAddr = this.findBrokerAddrByTopic(topic);//重新获取broker地址
         }
 
         if (null != brokerAddr) {
             try {
+                //根据broker地址从broker侧请求consumer列表
                 return this.mQClientAPIImpl.getConsumerIdListByGroup(brokerAddr, group, 3000);
             } catch (Exception e) {
                 log.warn("getConsumerIdListByGroup exception, " + brokerAddr + " " + group, e);
@@ -1127,12 +1131,15 @@ public class MQClientInstance {
     }
 
     public String findBrokerAddrByTopic(final String topic) {
+        //从缓存获取topic的路由信息
         TopicRouteData topicRouteData = this.topicRouteTable.get(topic);
         if (topicRouteData != null) {
+            //从路由信息中获取broker元数据列表
             List<BrokerData> brokers = topicRouteData.getBrokerDatas();
             if (!brokers.isEmpty()) {
                 int index = random.nextInt(brokers.size());
-                BrokerData bd = brokers.get(index % brokers.size());
+                BrokerData bd = brokers.get(index % brokers.size());//随机获取一个broker
+                //有master节点则获取master节点的地址，没有则随机一个则可
                 return bd.selectBrokerAddr();
             }
         }
