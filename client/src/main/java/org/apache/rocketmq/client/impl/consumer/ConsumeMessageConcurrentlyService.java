@@ -204,6 +204,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         final boolean dispatchToConsume) {
         final int consumeBatchSize = this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
         if (msgs.size() <= consumeBatchSize) {
+            //拉取到的消息数量<=消费者设置的最大拉取数量，构造消费请求任务，添加到消费线程池内。
             ConsumeRequest consumeRequest = new ConsumeRequest(msgs, processQueue, messageQueue);
             try {
                 this.consumeExecutor.submit(consumeRequest);
@@ -211,11 +212,12 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 this.submitConsumeRequestLater(consumeRequest);
             }
         } else {
+            //TODO 为什么拉取的消息回避设置的最大拉取数量还会大呢？？？？？？？？
             for (int total = 0; total < msgs.size(); ) {
                 List<MessageExt> msgThis = new ArrayList<MessageExt>(consumeBatchSize);
                 for (int i = 0; i < consumeBatchSize; i++, total++) {
                     if (total < msgs.size()) {
-                        msgThis.add(msgs.get(total));
+                        msgThis.add(msgs.get(total));//添加组装一批consumeBatchSize大小的消息构造成任务，添加到消费线程池
                     } else {
                         break;
                     }
@@ -376,6 +378,9 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
         @Override
         public void run() {
+            // 进入具体消息消费时会先检查processQueue 的dropped ，如果设置为true ， 则停止该队列的消费，
+            // 在进行消息重新负载时如果该消息队列被分配给消费组内其他消费者后，需要dropped设置为true ，阻止消费者继续消费不属于自己的消息队列
+            // 在回调拉取状态是偏移量异常，则也需要dropped
             if (this.processQueue.isDropped()) {
                 log.info("the message queue not be able to consume, because it's dropped. group={} {}", ConsumeMessageConcurrentlyService.this.consumerGroup, this.messageQueue);
                 return;

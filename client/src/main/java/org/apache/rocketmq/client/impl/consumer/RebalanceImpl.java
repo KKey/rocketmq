@@ -218,13 +218,13 @@ public abstract class RebalanceImpl {
     }
 
     public void doRebalance(final boolean isOrder) {
-        //当前consumer的订阅信息，可订阅多个topic
+        //每个DefaultMQPushConsumerImpl 都持有一个单独的RebalanceImpl对象，获取当前consumer的订阅信息，可订阅多个topic。
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
             for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
                 try {
-                    this.rebalanceByTopic(topic, isOrder);//每个topic都要进行负载
+                    this.rebalanceByTopic(topic, isOrder);//遍历订阅信息对每个topic的队列进行重新负载
                 } catch (Throwable e) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
                         log.warn("rebalanceByTopic Exception", e);
@@ -240,6 +240,16 @@ public abstract class RebalanceImpl {
         return subscriptionInner;
     }
 
+    /*
+    引用自《RocketMQ技术内幕》
+    问题l : PullRequest 对象在什么时候创建并加入到pullRequestQueue 中以便唤醒PullMessageService 线程。
+    RebalanceService 线程每隔20s 对消费者订阅的主题进行一次队列重新分配， 每一次分配都会获取主题的所有队列、
+    从Broker 服务器实时查询当前该主题该消费组内消费者列表， 对新分配的消息队列会创建对应的PullRequest对象。
+    在一个JVM进程中，同一个消费组同一个队列只会存在一个PullRequest 对象。
+    问题2 ： 集群内多个消费者是如何负载主题下的多个消费队列，并且如果有新的消费者加入时，消息队列又会如何重新分布。
+    由于每次进行队列重新负载时会从Broker 实时查询出当前消费组内所有消费者，并且
+    对消息队列、消费者列表进行排序，这样新加入的消费者就会在队列重新分布时分配到消费队列从而消费消息。
+     */
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
         switch (messageModel) {
             case BROADCASTING: {
@@ -260,6 +270,15 @@ public abstract class RebalanceImpl {
                 break;
             }
             case CLUSTERING: {//KKEY 集群模式
+                /*
+                引用自《RocketMQ技术内幕》
+                从主题订阅信息缓存表中获取主题的队列信息；发送请求从Broker中该消费组内当前所有的消费者客户端ID，
+                topic的队列可能分布在多个Broker 上， 那请求发往哪个Broker 呢？ RocketeMQ 从topic的路由信息表中随机选择一个Broker 。
+                Broker 为什么会存在消费组内所有消费者的信息呢？ 我们不妨回忆一下消费者在启动的时候会向MQClientInstance中注册消费者，
+                然后MQClientInstance会向所有的Broker 发送心跳包，心跳包中包含MQClientInstance的消费者信息。
+                如果mqSet 、cidA!l 任意一个为空则忽略本次消息队列负载。
+                 */
+
                 //根据当前consumer以及topic获取订阅信息中的消息队列列表，这个TOPIC分配给这个consumer的队列列表
                 //例如topic=tp,八个队列，订阅tp的是一个consumerGroup，有两个consumer，A和B，各四个队列
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
@@ -278,7 +297,11 @@ public abstract class RebalanceImpl {
                 if (mqSet != null && cidAll != null) {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>(mqSet);
 
-                    //对Topic下的消息消费队列、消费者Id排序，
+                    /*
+                    对Topic下的消息消费队列、消费者Id排序，
+                    首先对cidAll,mqAll 排序，这个很重要，同一个消费组内看到的视图保持一致，
+                    确保同一个消费队列不会被多个消费者分配
+                     */
                     Collections.sort(mqAll);
                     Collections.sort(cidAll);
 
@@ -292,12 +315,27 @@ public abstract class RebalanceImpl {
                         引用自design.md
                         这里的平均分配算法，类似于分页的算法，将所有MessageQueue排好序类似于记录，将所有消费端Consumer排好序类似页数，
                         并求出每一页需要包含的平均size和每个页面记录的范围range，最后遍历整个range而计算出当前Consumer端应该分配到的记录（这里即为：MessageQueue）
-                         AllocateMachineRoomNearby
-                         AllocateMessageQueueAveragely
-                         AllocateMessageQueueAveragelyByCircle
-                         AllocateMessageQueueByConfig
-                         AllocateMessageQueueByMachineRoom
-                         AllocateMessageQueueConsistentHash
+
+                        引用自《RocketMQ技术内幕》
+                        RocketMQ 默认提供5 种分配算法。
+                        1 ) AllocateMessageQueueAveragely ：平均分配，推荐指数为5 颗星。
+                        举例来说，如果现在有8 个消息消费队列ql, q2, q3, q4, q5, q6 ,q7 ,q8，有3个消费者cl,c2,c3 ，
+                        那么根据该负载算法，消息队列分配如下：
+                        c1: ql,q2,q3
+                        c2: q4,q5,q6
+                        c3: q7,q8
+                        2 ) AllocateMessageQueueAveragelyByCircle ：平均轮询分配，推荐指数为5 颗星。
+                        举例来说，如果现在有8 个消息消费队列ql, q2, q3, q4, q5, q6 ,q7 ,q8，有3个消费者cl,c2,c3 ，
+                        那么根据该负载算法，消息队列分配如下：
+                        cl : ql, q4, q7
+                        c2 : q2, q5, q8
+                        c3 : q3, q6
+                        3 ) AllocateMessageQueueConsistentHash ： 一致性hash 。不推荐使用，因为消息队列负载信息不容易跟踪。
+                        4 ) AllocateMessageQueueByConfig ：根据配置，为每一个消费者配置固定的消息队列。
+                        5 ) AllocateMessageQueueByMachineRoom ：根据Broker部署机房名，对每个消费者负责不同的Broker 上的队列。
+                        负载算法如果没有特殊的要求，尽量使用AllocateMessageQueueAveragely 、AllocateMessageQueueAveragelyByCircle，
+                        因为分配算法比较直观。消息队列分配遵循一个消费者可以分配多个消息队列，但同一个消息队列只会分配给一个消费者，
+                        故如果消费者个数大于消息队列数量，则有些消费者无法消费消息。
                          */
                         allocateResult = strategy.allocate(
                             this.consumerGroup,
@@ -315,6 +353,14 @@ public abstract class RebalanceImpl {
                     }
 
                     //调用updateProcessQueueTableInRebalance()方法，先将分配到的消息队列集合（mqSet）与processQueueTable做一个过滤比对。
+                    /*
+                    引用自《RocketMQ技术内幕》
+                    allocateResultSet为当前消费者负载的消息队列缓存表，如果缓存表中的MessageQueue不包含在mqSet中，说明经过本次消息队列负载后，
+                    该mq 被分配给其他消费者，故需要暂停该消息队列消息的消费，方法是将ProcessQueue的状态设置为draped＝true，该ProcessQueue中的消息将不会再被消费，
+                    调用removeUnnecessaryMessageQueue方法判断是否将MessageQueue、ProcessQueue缓存表中移除。
+                    removeUnnecessaryMessageQueue在Rebalancelmple 定义为抽象方法。removeUnnecessaryMessageQueue方法主要持久化待移除MessageQueue消息消费进度。
+                    在Push模式下，如果是集群模式并且是顺序消息消费时，还需要先解锁队列，
+                     */
                     boolean changed = this.updateProcessQueueTableInRebalance(topic, allocateResultSet, isOrder);
                     if (changed) {
                         log.info(
@@ -355,6 +401,14 @@ public abstract class RebalanceImpl {
         final boolean isOrder) {
         boolean changed = false;
 
+        /*
+         引用自《RocketMQ技术内幕》
+         allocateResultSet为当前消费者负载的消息队列缓存表，如果缓存表中的MessageQueue不包含在mqSet中，说明经过本次消息队列负载后，
+         该mq 被分配给其他消费者，故需要暂停该消息队列消息的消费，方法是将ProcessQueue的状态设置为draped＝true，该ProcessQueue中的消息将不会再被消费，
+         调用removeUnnecessaryMessageQueue方法判断是否将MessageQueue、ProcessQueue缓存表中移除。
+         removeUnnecessaryMessageQueue在Rebalancelmple 定义为抽象方法。removeUnnecessaryMessageQueue方法主要持久化待移除MessageQueue消息消费进度。
+         在Push模式下，如果是集群模式并且是顺序消息消费时，还需要先解锁队列，
+         */
         Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
@@ -391,6 +445,15 @@ public abstract class RebalanceImpl {
             }
         }
 
+        /*
+         引用自《RocketMQ技术内幕》
+        遍历本次负载分配到的队列集合，如果processQueueTable中没有包含该消息队列，表明这是本次新增加的消息队列，
+        首先从内存中移除该消息队列的消费进度，然后从磁盘中读取该消息队列的消费进度，创建PullRequest 对象。
+        这里有一个关键，如果读取到的消费进度小于0 ，则需要校对消费进度。
+        RocketMQ 提供CONSUME_FROM_LAST_OFFSET 、CONSUME_FROM_F IRST OFFSET 、CONSUME_FROM_TIMESTAMP 方式，
+        在创建消费者时可以通过调用DefaultMQPushConsumer#setConsumeFromWhere 方法设置。
+        PullRequest 的nextOffset计算逻辑位于：RebalancePushlmpl#computePullFromWhere
+         */
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
         for (MessageQueue mq : mqSet) {
             if (!this.processQueueTable.containsKey(mq)) {

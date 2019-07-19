@@ -1014,7 +1014,8 @@ public class MQClientInstance {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 try {
-                    impl.doRebalance();//每一个consumer进行重新负载，pull和push模式
+                    //遍历所有注册的消费者consumer，每一个consumer进行重新负载。不管是不是订阅的同一个topic，只要是consumer就触发重负载
+                    impl.doRebalance();
                 } catch (Throwable e) {
                     //把异常抓了，这个consumer重负载失败，不影响其他consumer的重负载
                     log.error("doRebalance exception", e);

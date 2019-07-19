@@ -575,16 +575,17 @@ public class MQClientAPIImpl {
         final CommunicationMode communicationMode,
         final PullCallback pullCallback
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //构造请求指令command
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.PULL_MESSAGE, requestHeader);
 
         switch (communicationMode) {
-            case ONEWAY:
+            case ONEWAY://拉取消息请求不支持单向模式
                 assert false;
                 return null;
-            case ASYNC:
+            case ASYNC://异步拉取
                 this.pullMessageAsync(addr, request, timeoutMillis, pullCallback);
                 return null;
-            case SYNC:
+            case SYNC://同步拉取
                 return this.pullMessageSync(addr, request, timeoutMillis);
             default:
                 assert false;
@@ -631,9 +632,10 @@ public class MQClientAPIImpl {
         final RemotingCommand request,
         final long timeoutMillis
     ) throws RemotingException, InterruptedException, MQBrokerException {
+        //发送同步请求
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
-        return this.processPullResponse(response);
+        return this.processPullResponse(response);//处理同步返回的消息
     }
 
     private PullResult processPullResponse(
@@ -641,15 +643,19 @@ public class MQClientAPIImpl {
         PullStatus pullStatus = PullStatus.NO_NEW_MSG;
         switch (response.getCode()) {
             case ResponseCode.SUCCESS:
+                //返回状态：成功，对应拉取状态：有消息发现
                 pullStatus = PullStatus.FOUND;
                 break;
             case ResponseCode.PULL_NOT_FOUND:
+                //返回状态：空消息，对应拉取状态：没有新消息
                 pullStatus = PullStatus.NO_NEW_MSG;
                 break;
             case ResponseCode.PULL_RETRY_IMMEDIATELY:
+                //返回状态：立即重新拉取，对应拉取状态：有消息，但是没有通过过滤和表达式匹配之后的消息
                 pullStatus = PullStatus.NO_MATCHED_MSG;
                 break;
             case ResponseCode.PULL_OFFSET_MOVED:
+                //返回状态：拉取偏移量错误，对应拉取状态：拉取偏移量错误
                 pullStatus = PullStatus.OFFSET_ILLEGAL;
                 break;
 
@@ -657,6 +663,7 @@ public class MQClientAPIImpl {
                 throw new MQBrokerException(response.getCode(), response.getRemark());
         }
 
+        //解码返回的消息
         PullMessageResponseHeader responseHeader =
             (PullMessageResponseHeader) response.decodeCommandCustomHeader(PullMessageResponseHeader.class);
 
