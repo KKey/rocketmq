@@ -22,7 +22,7 @@ import org.apache.rocketmq.client.consumer.PullStatus;
 import org.apache.rocketmq.common.message.MessageExt;
 
 public class PullResultExt extends PullResult {
-    private final long suggestWhichBrokerId;
+    private final long suggestWhichBrokerId;//下次拉取从哪个节点拉取的brokerID
     private byte[] messageBinary;
 
     public PullResultExt(PullStatus pullStatus, long nextBeginOffset, long minOffset, long maxOffset,
