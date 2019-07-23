@@ -75,7 +75,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             TimeUnit.MILLISECONDS,
             this.consumeRequestQueue,//无界有序任务缓存队列
             new ThreadFactoryImpl("ConsumeMessageThread_"));
-        //定时单个线程线程池两个
+        //定时单个线程线程池两个，一个用来给消费线程池延时提交消费任务，一个用来清理过期的消费请求
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
         this.cleanExpireMsgExecutors = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CleanExpireMsgScheduledThread_"));
     }
