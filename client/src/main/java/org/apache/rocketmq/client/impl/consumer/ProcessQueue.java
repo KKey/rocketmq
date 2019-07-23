@@ -80,14 +80,14 @@ public class ProcessQueue {
 
         int loop = msgTreeMap.size() < 16 ? msgTreeMap.size() : 16;
         for (int i = 0; i < loop; i++) {
+            //循环移除消息。默认最大循环次数：16次。
             MessageExt msg = null;
             try {
                 this.lockTreeMap.readLock().lockInterruptibly();
                 try {
                     if (!msgTreeMap.isEmpty() && System.currentTimeMillis() - Long.parseLong(MessageAccessor.getConsumeStartTimeStamp(msgTreeMap.firstEntry().getValue())) > pushConsumer.getConsumeTimeout() * 60 * 1000) {
-                        msg = msgTreeMap.firstEntry().getValue();
+                        msg = msgTreeMap.firstEntry().getValue();// 获取第一条消息。判断是否超时，若不超时，则结束循环
                     } else {
-
                         break;
                     }
                 } finally {
@@ -99,13 +99,14 @@ public class ProcessQueue {
 
             try {
 
-                pushConsumer.sendMessageBack(msg, 3);
+                pushConsumer.sendMessageBack(msg, 3);//KKEY 消息发回给broker
                 log.info("send expire msg back. topic={}, msgId={}, storeHost={}, queueId={}, queueOffset={}", msg.getTopic(), msg.getMsgId(), msg.getStoreHost(), msg.getQueueId(), msg.getQueueOffset());
                 try {
                     this.lockTreeMap.writeLock().lockInterruptibly();
                     try {
                         if (!msgTreeMap.isEmpty() && msg.getQueueOffset() == msgTreeMap.firstKey()) {
                             try {
+                                // 判断此时消息是否依然是第一条，若是，则进行移除
                                 removeMessage(Collections.singletonList(msg));
                             } catch (Exception e) {
                                 log.error("send expired msg exception", e);
@@ -192,13 +193,14 @@ public class ProcessQueue {
                     result = this.queueOffsetMax + 1;
                     int removedCnt = 0;
                     for (MessageExt msg : msgs) {
+                        //KKEY 从tree map中根据偏移量remove，因为是拿消息的偏移量作为key
                         MessageExt prev = msgTreeMap.remove(msg.getQueueOffset());
                         if (prev != null) {
                             removedCnt--;
-                            msgSize.addAndGet(0 - msg.getBody().length);
+                            msgSize.addAndGet(0 - msg.getBody().length);//维护消息体量总大小
                         }
                     }
-                    msgCount.addAndGet(removedCnt);
+                    msgCount.addAndGet(removedCnt);//维护消息数量
 
                     if (!msgTreeMap.isEmpty()) {
                         result = msgTreeMap.firstKey();
