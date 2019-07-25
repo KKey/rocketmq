@@ -202,11 +202,12 @@ public class MappedFile extends ReferenceResource {
         assert messageExt != null;
         assert cb != null;
 
-        int currentPos = this.wrotePosition.get();
+        int currentPos = this.wrotePosition.get();//最新写坐标
 
-        if (currentPos < this.fileSize) {
+        if (currentPos < this.fileSize) {//文件没满
+            //获取文件映射的内存缓存buffer
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
-            byteBuffer.position(currentPos);
+            byteBuffer.position(currentPos);//设置buffer的坐标为当前写坐标
             AppendMessageResult result = null;
             if (messageExt instanceof MessageExtBrokerInner) {
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);

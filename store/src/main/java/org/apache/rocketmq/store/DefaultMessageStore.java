@@ -352,11 +352,11 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     public PutMessageResult putMessage(MessageExtBrokerInner msg) {
-        if (this.shutdown) {
+        if (this.shutdown) {//状态校验
             log.warn("message store has shutdown, so putMessage is forbidden");
             return new PutMessageResult(PutMessageStatus.SERVICE_NOT_AVAILABLE, null);
         }
-
+        //从节点不支持消息写入
         if (BrokerRole.SLAVE == this.messageStoreConfig.getBrokerRole()) {
             long value = this.printTimes.getAndIncrement();
             if ((value % 50000) == 0) {
@@ -365,7 +365,7 @@ public class DefaultMessageStore implements MessageStore {
 
             return new PutMessageResult(PutMessageStatus.SERVICE_NOT_AVAILABLE, null);
         }
-
+        //是否允许写入
         if (!this.runningFlags.isWriteable()) {
             long value = this.printTimes.getAndIncrement();
             if ((value % 50000) == 0) {
@@ -376,12 +376,12 @@ public class DefaultMessageStore implements MessageStore {
         } else {
             this.printTimes.set(0);
         }
-
+        //topic的长度
         if (msg.getTopic().length() > Byte.MAX_VALUE) {
             log.warn("putMessage message topic length too long " + msg.getTopic().length());
             return new PutMessageResult(PutMessageStatus.MESSAGE_ILLEGAL, null);
         }
-
+        //消息属性字符串拼接的长度
         if (msg.getPropertiesString() != null && msg.getPropertiesString().length() > Short.MAX_VALUE) {
             log.warn("putMessage message properties length too long " + msg.getPropertiesString().length());
             return new PutMessageResult(PutMessageStatus.PROPERTIES_SIZE_EXCEEDED, null);
@@ -392,6 +392,7 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         long beginTime = this.getSystemClock().now();
+        //KKEY PUT MESSAGE实际逻辑
         PutMessageResult result = this.commitLog.putMessage(msg);
 
         long eclipseTime = this.getSystemClock().now() - beginTime;
