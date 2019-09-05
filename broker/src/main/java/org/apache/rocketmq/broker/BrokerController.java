@@ -529,6 +529,10 @@ public class BrokerController {
         }
     }
 
+    /**
+     * KKEY 注册远程RPC请求处理器
+     * broker接受RPC请求之后，根据请求编码对应的处理器
+     */
     public void registerProcessor() {
         /**
          * SendMessageProcessor
@@ -537,6 +541,9 @@ public class BrokerController {
         sendProcessor.registerSendMessageHook(sendMessageHookList);
         sendProcessor.registerConsumeMessageHook(consumeMessageHookList);
 
+        /**
+         * SendMessageProcessor 发送消息处理器
+         */
         this.remotingServer.registerProcessor(RequestCode.SEND_MESSAGE, sendProcessor, this.sendMessageExecutor);
         this.remotingServer.registerProcessor(RequestCode.SEND_MESSAGE_V2, sendProcessor, this.sendMessageExecutor);
         this.remotingServer.registerProcessor(RequestCode.SEND_BATCH_MESSAGE, sendProcessor, this.sendMessageExecutor);
@@ -546,13 +553,13 @@ public class BrokerController {
         this.fastRemotingServer.registerProcessor(RequestCode.SEND_BATCH_MESSAGE, sendProcessor, this.sendMessageExecutor);
         this.fastRemotingServer.registerProcessor(RequestCode.CONSUMER_SEND_MSG_BACK, sendProcessor, this.sendMessageExecutor);
         /**
-         * PullMessageProcessor
+         * PullMessageProcessor 消息拉取处理器
          */
         this.remotingServer.registerProcessor(RequestCode.PULL_MESSAGE, this.pullMessageProcessor, this.pullMessageExecutor);
         this.pullMessageProcessor.registerConsumeMessageHook(consumeMessageHookList);
 
         /**
-         * QueryMessageProcessor
+         * QueryMessageProcessor 消息查询处理器
          */
         NettyRequestProcessor queryProcessor = new QueryMessageProcessor(this);
         this.remotingServer.registerProcessor(RequestCode.QUERY_MESSAGE, queryProcessor, this.queryMessageExecutor);
@@ -562,7 +569,7 @@ public class BrokerController {
         this.fastRemotingServer.registerProcessor(RequestCode.VIEW_MESSAGE_BY_ID, queryProcessor, this.queryMessageExecutor);
 
         /**
-         * ClientManageProcessor
+         * ClientManageProcessor 客户端管理处理器
          */
         ClientManageProcessor clientProcessor = new ClientManageProcessor(this);
         this.remotingServer.registerProcessor(RequestCode.HEART_BEAT, clientProcessor, this.heartbeatExecutor);
@@ -574,7 +581,7 @@ public class BrokerController {
         this.fastRemotingServer.registerProcessor(RequestCode.CHECK_CLIENT_CONFIG, clientProcessor, this.clientManageExecutor);
 
         /**
-         * ConsumerManageProcessor
+         * ConsumerManageProcessor 消费者管理处理器，例如消费进度管理等
          */
         ConsumerManageProcessor consumerManageProcessor = new ConsumerManageProcessor(this);
         this.remotingServer.registerProcessor(RequestCode.GET_CONSUMER_LIST_BY_GROUP, consumerManageProcessor, this.consumerManageExecutor);
@@ -586,7 +593,7 @@ public class BrokerController {
         this.fastRemotingServer.registerProcessor(RequestCode.QUERY_CONSUMER_OFFSET, consumerManageProcessor, this.consumerManageExecutor);
 
         /**
-         * EndTransactionProcessor
+         * EndTransactionProcessor 事务结束处理器
          */
         this.remotingServer.registerProcessor(RequestCode.END_TRANSACTION, new EndTransactionProcessor(this), this.endTransactionExecutor);
         this.fastRemotingServer.registerProcessor(RequestCode.END_TRANSACTION, new EndTransactionProcessor(this), this.endTransactionExecutor);

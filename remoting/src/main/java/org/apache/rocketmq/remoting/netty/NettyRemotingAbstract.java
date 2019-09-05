@@ -77,6 +77,7 @@ public abstract class NettyRemotingAbstract {
     /**
      * This container holds all processors per request code, aka, for each incoming request, we may look up the
      * responding processor in this map to handle the request.
+     * 请求编码和请求处理器，以及处理器关联线程池的容器
      */
     protected final HashMap<Integer/* request code */, Pair<NettyRequestProcessor, ExecutorService>> processorTable =
         new HashMap<Integer, Pair<NettyRequestProcessor, ExecutorService>>(64);
@@ -155,9 +156,11 @@ public abstract class NettyRemotingAbstract {
         if (cmd != null) {
             switch (cmd.getType()) {
                 case REQUEST_COMMAND:
+                    //客户端查询请求处理
                     processRequestCommand(ctx, cmd);
                     break;
                 case RESPONSE_COMMAND:
+                    //与请求相对应的响应处理
                     processResponseCommand(ctx, cmd);
                     break;
                 default:
@@ -190,17 +193,22 @@ public abstract class NettyRemotingAbstract {
      * @param cmd request command.
      */
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
+        //KKEY 获取相对应的处理器
         final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
         final Pair<NettyRequestProcessor, ExecutorService> pair = null == matched ? this.defaultRequestProcessor : matched;
         final int opaque = cmd.getOpaque();
 
         if (pair != null) {
+            //构建处理任务
             Runnable run = new Runnable() {
                 @Override
                 public void run() {
                     try {
+                        //前置处理
                         doBeforeRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd);
+                        //KKEY 请求处理逻辑，根据请求编码对应的请求处理器不同
                         final RemotingCommand response = pair.getObject1().processRequest(ctx, cmd);
+                        //后置处理
                         doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd, response);
 
                         if (!cmd.isOnewayRPC()) {
@@ -208,7 +216,7 @@ public abstract class NettyRemotingAbstract {
                                 response.setOpaque(opaque);
                                 response.markResponseType();
                                 try {
-                                    ctx.writeAndFlush(response);
+                                    ctx.writeAndFlush(response);//KKEY 非单向请求需要回写response
                                 } catch (Throwable e) {
                                     log.error("process request over, but response failed", e);
                                     log.error(cmd.toString());
@@ -241,6 +249,7 @@ public abstract class NettyRemotingAbstract {
             }
 
             try {
+                //封装成请求任务并提交到处理器关联的线程池
                 final RequestTask requestTask = new RequestTask(run, ctx.channel(), cmd);
                 pair.getObject2().submit(requestTask);
             } catch (RejectedExecutionException e) {
@@ -259,6 +268,7 @@ public abstract class NettyRemotingAbstract {
                 }
             }
         } else {
+            //请求编码非法
             String error = " request type " + cmd.getCode() + " not supported";
             final RemotingCommand response =
                 RemotingCommand.createResponseCommand(RemotingSysResponseCode.REQUEST_CODE_NOT_SUPPORTED, error);

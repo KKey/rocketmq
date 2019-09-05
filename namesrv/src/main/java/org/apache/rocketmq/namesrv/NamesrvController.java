@@ -88,7 +88,7 @@ public class NamesrvController {
         //初始化线程池
         this.remotingExecutor = Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
-        this.registerProcessor();
+        this.registerProcessor();//注册处理器，远程RPC请求，通过请求编号和处理器对应
 
         //添加每10秒扫描存活broker的定时任务，移除不存活的broker
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker, 5, 10, TimeUnit.SECONDS);

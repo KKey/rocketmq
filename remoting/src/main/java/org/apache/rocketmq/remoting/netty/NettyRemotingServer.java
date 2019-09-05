@@ -207,7 +207,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                                 new NettyDecoder(),
                                 new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
                                 new NettyConnectManageHandler(),
-                                new NettyServerHandler()
+                                new NettyServerHandler()//数据处理handler
                             );
                     }
                 });
@@ -217,7 +217,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         try {
-            ChannelFuture sync = this.serverBootstrap.bind().sync();
+            ChannelFuture sync = this.serverBootstrap.bind().sync();//服务端启动
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             this.port = addr.getPort();
         } catch (InterruptedException e1) {
@@ -399,6 +399,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     class NettyServerHandler extends SimpleChannelInboundHandler<RemotingCommand> {
 
         @Override
+        /**
+         * 数据读请求
+         */
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) throws Exception {
             processMessageReceived(ctx, msg);
         }
