@@ -17,12 +17,13 @@
 
 package org.apache.rocketmq.client.latency;
 
+import org.apache.rocketmq.client.common.ThreadLocalIndex;
+
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.rocketmq.client.common.ThreadLocalIndex;
 
 public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> {
     private final ConcurrentHashMap<String, FaultItem> faultItemTable = new ConcurrentHashMap<String, FaultItem>(16);
@@ -72,11 +73,11 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
         }
 
         if (!tmpList.isEmpty()) {
-            Collections.shuffle(tmpList);
+            Collections.shuffle(tmpList);//打散
 
-            Collections.sort(tmpList);
+            Collections.sort(tmpList);//排序
 
-            final int half = tmpList.size() / 2;
+            final int half = tmpList.size() / 2;//折半
             if (half <= 0) {
                 return tmpList.get(0).getName();
             } else {

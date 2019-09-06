@@ -55,10 +55,14 @@ public class MQFaultStrategy {
         this.sendLatencyFaultEnable = sendLatencyFaultEnable;
     }
 
+    /**
+     * NOTE 选择消息队列
+     */
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
         if (this.sendLatencyFaultEnable) {//sendLatencyFaultEnable = true则启动broker故障延迟机制
             try {
-                int index = tpInfo.getSendWhichQueue().getAndIncrement();//从路由信息中轮训获取一个index
+                int index = tpInfo.getSendWhichQueue().getAndIncrement();//从路由信息中轮询获取一个index
+                //遍历当前topic的所有消息队列
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
                     int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
                     if (pos < 0)
@@ -71,12 +75,12 @@ public class MQFaultStrategy {
                     }
                 }
 
-                //如果所有路由信息中的队列都不可用，则从缓存不可用broker的Map中选择一个可用的，都不可用，则null
+                //如果所有路由信息中的队列都不可用，则从缓存不可用broker的Map中选择一个较好的broker，如果列表为空则null
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 //从本地缓存的topic路由信息中，遍历所有的TOPIC路由队列列表，
                 // 用队列所属的broker找和当前broker名称相匹配的队列，因为一个topic可能在多个broker中有队列
                 // 如果当前从不可用缓存broker map中没有找到，返回TOPIC队列的写队列数，没有找到则返回-1
-                int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
+                int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);//当前这个broker的topic的写队列数量
                 if (writeQueueNums > 0) {//如果TOPIC在notBestBroker的写队列数量>0
                     final MessageQueue mq = tpInfo.selectOneMessageQueue();
                     if (notBestBroker != null) {
@@ -94,7 +98,7 @@ public class MQFaultStrategy {
             return tpInfo.selectOneMessageQueue();//轮训一个吗
         }
 
-        return tpInfo.selectOneMessageQueue(lastBrokerName);//broker故障延迟隔离机制不启动
+        return tpInfo.selectOneMessageQueue(lastBrokerName);//broker故障延迟隔离机制不启动轮询一个
     }
 
     public void updateFaultItem(final String brokerName, final long currentLatency, boolean isolation) {
