@@ -70,11 +70,11 @@ public class RequestCode {
 
     public static final int CHECK_CLIENT_CONFIG = 46;
 
-    public static final int PUT_KV_CONFIG = 100;
+    public static final int PUT_KV_CONFIG = 100;//向name server追加KV配置
 
-    public static final int GET_KV_CONFIG = 101;
+    public static final int GET_KV_CONFIG = 101;//从name server获取KV配置
 
-    public static final int DELETE_KV_CONFIG = 102;
+    public static final int DELETE_KV_CONFIG = 102;//向name server删除KV配置
 
     public static final int REGISTER_BROKER = 103;
 

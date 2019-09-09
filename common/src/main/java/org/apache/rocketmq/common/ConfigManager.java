@@ -16,10 +16,11 @@
  */
 package org.apache.rocketmq.common;
 
-import java.io.IOException;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
+
+import java.io.IOException;
 
 public abstract class ConfigManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
@@ -29,13 +30,13 @@ public abstract class ConfigManager {
     public boolean load() {
         String fileName = null;
         try {
-            fileName = this.configFilePath();
+            fileName = this.configFilePath();//获取配置文件路径
             String jsonString = MixAll.file2String(fileName);
 
             if (null == jsonString || jsonString.length() == 0) {
-                return this.loadBak();
+                return this.loadBak();//正常文件不存在，获取bak文件，异常bak
             } else {
-                this.decode(jsonString);
+                this.decode(jsonString);//解析转换缓存到内存中
                 log.info("load " + fileName + " OK");
                 return true;
             }

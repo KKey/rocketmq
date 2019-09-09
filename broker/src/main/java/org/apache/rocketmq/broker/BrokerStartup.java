@@ -64,7 +64,7 @@ public class BrokerStartup {
     public static BrokerController start(BrokerController controller) {
         try {
 
-            controller.start();
+            controller.start();//KKEY 启动入口
 
             String tip = "The broker[" + controller.getBrokerConfig().getBrokerName() + ", "
                 + controller.getBrokerAddr() + "] boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
@@ -110,14 +110,14 @@ public class BrokerStartup {
                 System.exit(-1);
             }
 
-            final BrokerConfig brokerConfig = new BrokerConfig();
-            final NettyServerConfig nettyServerConfig = new NettyServerConfig();
-            final NettyClientConfig nettyClientConfig = new NettyClientConfig();
+            final BrokerConfig brokerConfig = new BrokerConfig();//broker配置
+            final NettyServerConfig nettyServerConfig = new NettyServerConfig();//网络服务端配置
+            final NettyClientConfig nettyClientConfig = new NettyClientConfig();//网络客户端配置
+            final MessageStoreConfig messageStoreConfig = new MessageStoreConfig();//消息存储配置
 
             nettyClientConfig.setUseTLS(Boolean.parseBoolean(System.getProperty(TLS_ENABLE,
                 String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING))));
             nettyServerConfig.setListenPort(10911);
-            final MessageStoreConfig messageStoreConfig = new MessageStoreConfig();
 
             if (BrokerRole.SLAVE == messageStoreConfig.getBrokerRole()) {
                 int ratio = messageStoreConfig.getAccessMessageInMemoryMaxRatio() - 10;
@@ -155,6 +155,7 @@ public class BrokerStartup {
                 try {
                     String[] addrArray = namesrvAddr.split(";");
                     for (String addr : addrArray) {
+                        //nameServer配置的地址检查
                         RemotingUtil.string2SocketAddress(addr);
                     }
                 } catch (Exception e) {
@@ -210,6 +211,7 @@ public class BrokerStartup {
             MixAll.printObjectProperties(log, nettyClientConfig);
             MixAll.printObjectProperties(log, messageStoreConfig);
 
+            //KKEY 构造controller
             final BrokerController controller = new BrokerController(
                 brokerConfig,
                 nettyServerConfig,
@@ -218,6 +220,7 @@ public class BrokerStartup {
             // remember all configs to prevent discard
             controller.getConfiguration().registerConfig(properties);
 
+            //KKEY 初始化操作，各种加载和初始化各种线程池等
             boolean initResult = controller.initialize();
             if (!initResult) {
                 controller.shutdown();
